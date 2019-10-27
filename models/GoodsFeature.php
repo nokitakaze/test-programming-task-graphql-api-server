@@ -1,4 +1,5 @@
 <?php
+    declare(strict_types=1);
 
     namespace app\models;
 
@@ -72,5 +73,15 @@
         {
             /** @noinspection PhpIncompatibleReturnTypeInspection */
             return $this->hasOne(Goods::class, ['id' => 'goods_id'])->one();
+        }
+
+        /**
+         * @return array
+         */
+        public static function getRelations(): array
+        {
+            return [
+                [static::REL_ONE, 'Goods', 'goods_id', 'id', 'goods'],
+            ];
         }
     }

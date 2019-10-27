@@ -1,4 +1,5 @@
 <?php
+    declare(strict_types=1);
 
     namespace app\models;
 
@@ -72,5 +73,15 @@
         public function getFeatures()
         {
             return $this->hasMany(GoodsFeature::class, ['goods_id' => 'id'])->all();
+        }
+
+        /**
+         * @return array
+         */
+        public static function getRelations(): array
+        {
+            return [
+                [static::REL_MANY, 'GoodsFeature', 'id', 'goods_id', 'features'],
+            ];
         }
     }

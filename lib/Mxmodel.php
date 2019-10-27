@@ -1,4 +1,5 @@
 <?php
+    declare(strict_types=1);
 
     namespace app\lib;
 
@@ -54,10 +55,13 @@
             return ['Goods', 'GoodsFeature'];
         }
 
-        public static function getGraphQLType(): ObjectType
+        protected static $_relationReferencesCount = [];
+
+        public static function getGraphQLType($recursive = true, $prefix = ''): ObjectType
         {
-            $fields = [];
             $class = static::class;
+            $fields = [];
+            $classShort = basename(str_replace('\\', '/', $class));
             /** @var Mxmodel $obj */
             /** @var Mxmodel $class */
             $obj = new $class();
@@ -70,11 +74,57 @@
                     },
                 ];
             }
-            // @todo relation
+            if ($recursive) {
+                foreach ($class::getRelations() as $relation) {
+                    list($relationType, $otherClass, $myField, $otherField, $fieldName) = $relation;
+                    /**
+                     * @var string         $relationType
+                     * @var Mxmodel        $otherClass
+                     * @var string         $myField
+                     * @var string         $otherField
+                     * @var Mxmodel|string $otherClassFull
+                     */
+                    $otherClassFull = '\\app\\models\\'.$otherClass;
+                    if (isset(self::$_relationReferencesCount[$otherClassFull])) {
+                        self::$_relationReferencesCount[$otherClassFull]++;
+                    } else {
+                        self::$_relationReferencesCount[$otherClassFull] = 1;
+                    }
+
+                    $otherType = $otherClassFull::getGraphQLType(false,
+                        '_rel'.self::$_relationReferencesCount[$otherClassFull].'_');
+                    switch ($relationType) {
+                        case self::REL_ONE:
+                            $fields[$fieldName] = [
+                                'type' => $otherType,
+                                'resolve' => function (array $root) use ($otherClassFull, $myField, $otherField) {
+                                    $query = $otherClassFull::find()->where(['=', $otherField, $root[$myField]]);
+
+                                    return $query->one()->attributes;
+                                },
+                            ];
+                            break;
+                        case self::REL_MANY:
+                            $fields[$fieldName] = [
+                                'type' => Type::listOf($otherType),
+                                'resolve' => function (array $root) use ($otherClassFull, $myField, $otherField) {
+                                    $query = $otherClassFull::find()->where(['=', $otherField, $root[$myField]]);
+                                    $result = [];
+                                    foreach ($query->all() as $record) {
+                                        $result[] = $record->attributes;
+                                    }
+
+                                    return $result;
+                                },
+                            ];
+                            break;
+                    }
+                }
+            }
 
             $objectType = new ObjectType([
-                'name' => $class,
-                'fields' => function () use ($fields) {
+                'name' => $prefix.$classShort,
+                'fields' => function () use ($fields): array {
                     return $fields;
                 },
             ]);
@@ -104,11 +154,12 @@
                 ];
             }
 
+            // Запрос одной записи
             $queries[$classShort] = [
                 'type' => $selfType,
                 'description' => 'Get item with type '.$classShort,
                 'args' => $mainQueryArgs,
-                'resolve' => function ($root, array $args) use ($class) {
+                'resolve' => function ($root, array $args) use ($class): array {
                     if (empty($args)) {
                         throw new \Exception('Args must have at least one field');
                     }
@@ -117,21 +168,28 @@
                     foreach ($args as $key => $value) {
                         $query = $query->andWhere(['=', $key, $value]);
                     }
+                    // hint: Реляции подгружаются на уровне GraphQL-PHP и их значения подставляются сами по себе
                     $result = $query->one()->attributes;
-
-                    // @todo реляции
 
                     return $result;
                 },
             ];
 
+            // Запрос всех записей
             $queries['all'.$classShort] = [
                 'type' => Type::listOf($selfType),
                 'description' => 'Get all items with type '.$classShort,
-                'resolve' => function () use ($class) {
+                'args' => $mainQueryArgs,
+                'resolve' => function ($root, array $args) use ($class) {
+                    $query = $class::find();
+                    foreach ($args as $key => $value) {
+                        $query = $query->andWhere(['=', $key, $value]);
+                    }
+
                     $result = [];
-                    foreach ($class::find()->all() as $value) {
-                        // @todo реляции
+                    foreach ($query->all() as $value) {
+                        /** @var Mxmodel $value */
+                        // hint: Реляции подгружаются на уровне GraphQL-PHP и их значения подставляются сами по себе
                         $result[] = $value->attributes;
                     }
 
@@ -149,7 +207,7 @@
             // hint: Проблема, когда класс называется Query
             foreach (static::getTypesList() as $class) {
                 /** @var Mxmodel $fullClassName */
-                $fullClassName = ('\\app\\models\\'.$class);
+                $fullClassName = '\\app\\models\\'.$class;
 
                 $queryType = $fullClassName::getGraphQLType();
                 $availableQueries = array_merge($availableQueries, $fullClassName::getAvailableQueries());
@@ -167,4 +225,14 @@
             return $schema;
         }
 
+        public const REL_ONE = 'one';
+        public const REL_MANY = 'many';
+
+        /**
+         * @return array
+         */
+        public static function getRelations(): array
+        {
+            return [];
+        }
     }
