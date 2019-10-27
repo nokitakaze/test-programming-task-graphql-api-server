@@ -3,6 +3,7 @@
 
     namespace app\controllers;
 
+    use app\lib\GraphqlQueryResolver;
     use app\lib\Mxmodel;
     use Yii;
     use yii\filters\AccessControl;
@@ -86,7 +87,7 @@
         /**
          * Displays about page.
          *
-         * @return string
+         * @return array
          */
         public function actionRequest()
         {
@@ -98,31 +99,8 @@
                 $input = json_decode($rawInput, true);
                 $query = $input['query'];
 
-                // Содание типа данных "Запрос"
-                /*
-                $queryType = new ObjectType([
-                    'name' => 'Query',
-                    'fields' => [
-                        'hello' => [
-                            'type' => Type::string(),
-                            'description' => 'Возвращает приветствие',
-                            'resolve' => function () {
-                                return 'Привет, GraphQL!';
-                            },
-                        ],
-                    ],
-                ]);
-
-                // Создание схемы
-                $schema = new Schema([
-                    'query' => $queryType,
-                ]);
-                */
-
-                $schema = Mxmodel::getGraphQLSchema();
-
                 // Выполнение запроса
-                $result = GraphQL::executeQuery($schema, $query)->toArray();
+                $result = GraphqlQueryResolver::runQuery($query);
             } catch (\Exception $e) {
                 $a = 0;
                 $result = [
