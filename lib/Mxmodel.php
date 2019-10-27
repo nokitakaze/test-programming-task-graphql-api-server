@@ -234,10 +234,17 @@
                 'args' => $mainUpdateArgs,
                 'resolve' => function ($root, array $args) use ($class, $classShort): array {
                     if (empty($args)) {
+                        // hint: Сюда код не придёт никогда, так как Code Contract GraphQL-PHP не позволит этому случиться
+                        // @codeCoverageIgnoreStart
                         throw new \Exception('Args must have at least one field');
+                        // @codeCoverageIgnoreEnd
                     }
                     if (empty($args['id'])) {// hint: В реальности primary key может называться как угодно
+                        // hint: Сюда код не придёт никогда, так как Code Contract GraphQL-PHP не позволит этому случиться —
+                        // поле выставлено как not null
+                        // @codeCoverageIgnoreStart
                         throw new \Exception('Arg `id` must have value');
+                        // @codeCoverageIgnoreEnd
                     }
 
                     $query = $class::find()->where(['=', 'id', $args['id']]);
@@ -276,11 +283,13 @@
                 'description' => 'Get item with type '.$classShort,
                 'args' => $mainInsertArgs,
                 'resolve' => function ($root, array $args) use ($class, $classShort): array {
-                    if (empty($args)) {
-                        throw new \Exception('Args must have at least one field');
-                    }
+                    // hint: Тут специально нет проверки на empty($args), объект просто создастся со своими дефолтными значениями
                     if (!empty($args['id'])) {// hint: В реальности primary key может называться как угодно
-                        throw new \Exception('Arg `id` must be null');
+                        // hint: Сюда код не придёт никогда, так как Code Contract GraphQL-PHP не позволит этому случиться —
+                        // этого поля просто нет среди доступных
+                        // @codeCoverageIgnoreStart
+                        throw new \Exception('Arg `id` must not be set');
+                        // @codeCoverageIgnoreEnd
                     }
 
                     /** @var Mxmodel $newRecord */
@@ -310,17 +319,23 @@
                 'args' => $mainDeleteArgs,
                 'resolve' => function ($root, array $args) use ($class, $classShort): bool {
                     if (empty($args)) {
+                        // hint: Сюда код не придёт никогда, так как Code Contract GraphQL-PHP не позволит этому случиться
+                        // @codeCoverageIgnoreStart
                         throw new \Exception('Args must have at least one field');
+                        // @codeCoverageIgnoreEnd
                     }
                     if (empty($args['id'])) {// hint: В реальности primary key может называться как угодно
+                        // hint: Сюда код не придёт никогда, так как Code Contract GraphQL-PHP не позволит этому случиться —
+                        // поле выставлено как not null
+                        // @codeCoverageIgnoreStart
                         throw new \Exception('Arg `id` must have value');
+                        // @codeCoverageIgnoreEnd
                     }
 
                     $query = $class::find()->where(['=', 'id', $args['id']]);
                     $record = $query->one();
                     if (!is_null($record)) {
-                        $record->delete();
-                        return true;
+                        return ($record->delete() === 1);
                     } else {
                         return false;
                     }
@@ -375,6 +390,10 @@
             return [];
         }
 
+        /**
+         * @return string
+         * @codeCoverageIgnore
+         */
         public function getErrorsAsString(): string
         {
             if (empty($this->errors)) {

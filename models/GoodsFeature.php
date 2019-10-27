@@ -34,7 +34,7 @@
         public function rules()
         {
             return [
-                [['name', 'goods_id', 'value'], 'required'],
+                [['name', 'goods_id'], 'required'],
                 [['id', 'goods_id'], 'integer'],
                 [['name', 'value'], 'string'],
             ];

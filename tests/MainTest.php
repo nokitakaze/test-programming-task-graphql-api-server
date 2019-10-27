@@ -4,6 +4,8 @@
     namespace app\tests;
 
     use app\lib\GraphqlQueryResolver;
+    use app\models\Goods;
+    use app\models\GoodsFeature;
 
     require_once __DIR__.'/_bootstrap.php';
 
@@ -345,6 +347,8 @@
 
         protected static $updateGoodsIds = null;
         protected static $updateGoodsFeatureIds = null;
+        protected static $deleteGoodsIds = null;
+        protected static $deleteGoodsFeatureIds = null;
 
         /**
          * Обновление данных в Goods
@@ -423,6 +427,25 @@
             }
         }
 
+        protected function checkDataGoodsFeatureConsistency()
+        {
+            $ids = array_keys(self::$dataFeatures);
+            foreach ($ids as $oldId) {
+                $query = sprintf('query{
+  GoodsFeature (id: %s) {
+    id, name, value, goods_id, goods {id, name, description, price}
+}}',
+                    $oldId
+                );
+                $result = GraphqlQueryResolver::runQuery($query);
+                $this->assertArrayNotHasKey('errors', $result);
+                $newItem = $result['data']['GoodsFeature'];
+
+                $this->assertReturnGoodsFeature(null, $newItem, self::$dataFeatures[$oldId]);
+                $this->assertReturnGoods(null, $newItem['goods'], self::$dataGoods[$newItem['goods_id']]);
+            }
+        }
+
         /**
          * Обновление данных в GoodsFeature
          *
@@ -474,20 +497,7 @@
             $this->assertReturnGoodsFeature($need_keys, $newItem, self::$dataFeatures[$feature_id]);
 
             // Проверяем все записи. Чтобы убедиться, что не зацепилась левая
-            foreach ($ids as $oldId) {
-                $query = sprintf('query{
-  GoodsFeature (id: %s) {
-    id, name, value, goods_id, goods {id, name, description, price}
-}}',
-                    $oldId
-                );
-                $result = GraphqlQueryResolver::runQuery($query);
-                $this->assertArrayNotHasKey('errors', $result);
-                $newItem = $result['data']['GoodsFeature'];
-
-                $this->assertReturnGoodsFeature(null, $newItem, self::$dataFeatures[$oldId]);
-                $this->assertReturnGoods(null, $newItem['goods'], self::$dataGoods[$newItem['goods_id']]);
-            }
+            $this->checkDataGoodsFeatureConsistency();
         }
 
         /**
@@ -533,21 +543,155 @@
         }
 
         /**
-         * Удаление фич
+         * Выбираем все items
          */
-        public function testAllMainQuery5_DeleteGoodsFeature()
+        public function testAllMainQuery4a_GetList()
         {
-            // @todo
-            $this->markTestSkipped('недоделано');
+            $query = 'query {allGoods {id, name, description, price, features{id,name,value,goods_id}}}';
+            $result = GraphqlQueryResolver::runQuery($query);
+            $this->assertArrayNotHasKey('errors', $result);
+
+            $all_goods = [];
+            $all_features = [];
+            foreach ($result['data']['allGoods'] as $goods) {
+                $all_goods[$goods['id']] = $goods;
+                foreach ($goods['features'] as $feature) {
+                    $all_features[$feature['id']] = $feature;
+                }
+            }
+            foreach (self::$dataGoods as $goods_id => $dataGood) {
+                $this->assertArrayHasKey($goods_id, $all_goods);
+                $this->assertReturnGoods(null, $all_goods[$goods_id], $dataGood);
+            }
+            unset($goods_id, $dataGood);
+            foreach (self::$dataFeatures as $feature_id => $dataFeature) {
+                $this->assertArrayHasKey($feature_id, $all_features);
+                $this->assertReturnGoodsFeature(null, $all_features[$feature_id], $dataFeature);
+            }
+        }
+
+        /**
+         * Выбираем все items
+         */
+        public function testAllMainQuery4b_GetList()
+        {
+            $ids = array_keys(self::$dataGoods);
+            shuffle($ids);
+            for ($i = 0; $i < 5; $i++) {
+                $goods_id = $ids[$i];
+                $query = sprintf('query {allGoods(id: %s) {id}}', $goods_id);
+                $result = GraphqlQueryResolver::runQuery($query);
+                $this->assertArrayNotHasKey('errors', $result);
+                $this->assertEquals(1, count($result['data']['allGoods']));
+                $goods = $result['data']['allGoods'][0];
+                $this->assertEquals($goods_id, $goods['id']);
+            }
+        }
+
+        /**
+         * Удаление фич
+         * @dataProvider dataAllMainQuery2_Update
+         *
+         * @param int $innerId
+         */
+        public function testAllMainQuery6_DeleteGoodsFeature(int $innerId)
+        {
+            $ids = array_keys(self::$dataFeatures);
+            if (is_null(self::$deleteGoodsFeatureIds)) {
+                if (count($ids) <= 10) {
+                    self::$deleteGoodsFeatureIds = $ids;
+                } else {
+                    shuffle($ids);
+                    self::$deleteGoodsFeatureIds = array_chunk($ids, 10)[0];
+                }
+            }
+            if ($innerId >= count(self::$deleteGoodsFeatureIds)) {
+                $this->markTestSkipped('Not enough data');
+
+                return; // hint: сюда код не придёт никогда, markTestSkipped кидает ошибку
+            }
+            $feature_id = self::$deleteGoodsFeatureIds[$innerId];
+
+            $query = sprintf('mutation {  deleteGoodsFeature (id: %s) }', $feature_id);
+            $result = GraphqlQueryResolver::runQuery($query);
+            $this->assertArrayNotHasKey('errors', $result);
+            $this->assertTrue($result['data']['deleteGoodsFeature']);
+
+            $record = GoodsFeature::find()->where(['=', 'id', $feature_id])->one();
+            $this->assertNull($record);
+            $goods_id = self::$dataFeatures[$feature_id]['goods_id'];
+            unset(self::$dataFeatures[$feature_id]);
+
+            // Удаляем данные из goods
+            self::$dataGoods[$goods_id]['features'] = array_diff(self::$dataGoods[$goods_id]['features'], [$feature_id]);
+
+            // проверяем остальные записи
+            $this->checkDataGoodsFeatureConsistency();
         }
 
         /**
          * Удаление товаров
+         * @dataProvider dataAllMainQuery2_Update
+         *
+         * @param int $innerId
          */
-        public function testAllMainQuery6_DeleteGoods()
+        public function testAllMainQuery7_DeleteGoods(int $innerId)
         {
-            // @todo
-            $this->markTestSkipped('недоделано');
+            $ids = array_keys(self::$dataGoods);
+            if (is_null(self::$deleteGoodsIds)) {
+                shuffle($ids);
+                self::$deleteGoodsIds = array_chunk($ids, 10)[0];
+            }
+            $goods_id = self::$deleteGoodsIds[$innerId];
+
+            $query = sprintf('mutation {  deleteGoods (id: %s) }', $goods_id);
+            $result = GraphqlQueryResolver::runQuery($query);
+            $this->assertArrayNotHasKey('errors', $result);
+            $this->assertTrue($result['data']['deleteGoods']);
+
+            $record = Goods::find()->where(['=', 'id', $goods_id])->one();
+            $this->assertNull($record);
+            foreach (self::$dataGoods[$goods_id]['features'] as $feature_id) {
+                unset(self::$dataFeatures[$feature_id]);
+            }
+            unset(self::$dataGoods[$goods_id]);
+
+            // проверяем остальные записи
+            $this->checkDataGoodsFeatureConsistency();
         }
 
+        public function dataAllClasses(): array
+        {
+            return [
+                ['Goods'],
+                ['GoodsFeature'],
+            ];
+        }
+
+        /**
+         * Удаление пустого места
+         *
+         * @param string $class
+         *
+         * @dataProvider dataAllClasses
+         */
+        public function testAllMainQuery8_DeleteEmpties(string $class)
+        {
+            $query = sprintf(sprintf('mutation {  delete%s (id: -1) }', $class));
+            $result = GraphqlQueryResolver::runQuery($query);
+            $this->assertArrayNotHasKey('errors', $result);
+            $this->assertFalse($result['data']['delete'.$class]);
+        }
+
+        /**
+         * @param string $class
+         *
+         * @dataProvider dataAllClasses
+         */
+        public function testEmptySingleItemRequest(string $class)
+        {
+            $query = sprintf('query{%s {id}}', $class);
+            $result = GraphqlQueryResolver::runQuery($query);
+            $this->assertArrayHasKey('errors', $result);
+        }
     }
