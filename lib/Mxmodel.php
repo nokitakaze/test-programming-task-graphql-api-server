@@ -147,7 +147,7 @@
             $obj = new $class();
 
             $mainQueryArgs = [];
-            foreach ($obj->attributeLabels() as $name => $label) {
+            foreach (array_keys($obj->attributeLabels()) as $name) {
                 $mainQueryArgs[$name] = [
                     // hint: Другие фичи для аргументов сейчас не используются
                     'type' => $class::getAttributeType($name),
@@ -200,24 +200,128 @@
             return $queries;
         }
 
+        public static function getAvailableMutations(): array
+        {
+            $queries = [];
+            $class = static::class;
+            $classShort = basename(str_replace('\\', '/', $class));
+            /** @var Mxmodel $obj */
+            /** @var Mxmodel $class */
+            $obj = new $class();
+
+            // update
+            $mainUpdateArgs = ['id' => Type::nonNull($class::getAttributeType('id'))];
+            foreach (array_keys($obj->attributeLabels()) as $name) {
+                if ($name === 'id') {
+                    continue;
+                }
+                $mainUpdateArgs[$name] = [
+                    // hint: Другие фичи для аргументов сейчас не используются
+                    'type' => $class::getAttributeType($name),
+                ];
+            }
+
+            $queries['update'.$classShort] = [
+                'type' => static::getGraphQLType(false, '_update_'),
+                'description' => 'Get item with type '.$classShort,
+                'args' => $mainUpdateArgs,
+                'resolve' => function ($root, array $args) use ($class, $classShort): array {
+                    if (empty($args)) {
+                        throw new \Exception('Args must have at least one field');
+                    }
+                    if (empty($args['id'])) {// hint: В реальности primary key может называться как угодно
+                        throw new \Exception('Arg `id` must have value');
+                    }
+
+                    $query = $class::find()->where(['=', 'id', $args['id']]);
+                    // hint: Реляции подгружаются на уровне GraphQL-PHP и их значения подставляются сами по себе
+                    $record = $query->one();
+                    foreach ($args as $key => $value) {
+                        // hint: Сюда надо вставлять код, который санирует поля, в которые нельзя писать
+                        if ($key !== 'id') {
+                            $record->{$key} = $value;
+                        }
+                    }
+                    if (!$record->validate() or !$record->save()) {
+                        throw new \Exception(sprintf('Can not save record (%s) id=%s: %s',
+                            $classShort, $record->id, $record->getErrorsAsString()));
+                    }
+
+                    $record = $query->one();
+
+                    return $record->attributes;
+                },
+            ];
+
+            // insert
+            $mainInsertArgs = [];
+            foreach (array_keys($obj->attributeLabels()) as $name) {
+                if ($name === 'id') {
+                    continue;
+                }
+                $mainInsertArgs[$name] = [
+                    // hint: Другие фичи для аргументов сейчас не используются
+                    'type' => $class::getAttributeType($name),
+                ];
+            }
+            $queries['insert'.$classShort] = [
+                'type' => static::getGraphQLType(false, '_insert_'),
+                'description' => 'Get item with type '.$classShort,
+                'args' => $mainInsertArgs,
+                'resolve' => function ($root, array $args) use ($class, $classShort): array {
+                    if (empty($args)) {
+                        throw new \Exception('Args must have at least one field');
+                    }
+                    if (!empty($args['id'])) {// hint: В реальности primary key может называться как угодно
+                        throw new \Exception('Arg `id` must be null');
+                    }
+
+                    /** @var Mxmodel $newRecord */
+                    $newRecord = new $class();
+                    foreach ($args as $key => $value) {
+                        // hint: Сюда надо вставлять код, который санирует поля, в которые нельзя писать
+                        $newRecord->{$key} = $value;
+                    }
+                    if (!$newRecord->validate() or !$newRecord->save()) {
+                        throw new \Exception(sprintf('Can not save new record (%s): %s',
+                            $classShort, $newRecord->getErrorsAsString()));
+                    }
+
+                    $record = $class::find()->where(['=', 'id', $newRecord->id])->one();
+
+                    return $record->attributes;
+                },
+            ];
+
+            return $queries;
+        }
+
         final public static function getGraphQLSchema(): \GraphQL\Type\Schema
         {
             $schema_array = [];
             $availableQueries = [];
-            // hint: Проблема, когда класс называется Query
+            $availableMutations = [];
+            // hint: Проблема, когда класс называется Query или Mutation
             foreach (static::getTypesList() as $class) {
                 /** @var Mxmodel $fullClassName */
                 $fullClassName = '\\app\\models\\'.$class;
+                $graphQLType = $fullClassName::getGraphQLType();
+                $schema_array[$class] = $graphQLType;
 
-                $queryType = $fullClassName::getGraphQLType();
+                // Запросы
                 $availableQueries = array_merge($availableQueries, $fullClassName::getAvailableQueries());
 
-                $schema_array[$class] = $queryType;
+                // Мутации
+                $availableMutations = array_merge($availableMutations, $fullClassName::getAvailableMutations());
             }
 
             $schema_array['query'] = new ObjectType([
                 'name' => 'Query',
                 'fields' => $availableQueries,
+            ]);
+            $schema_array['mutation'] = new ObjectType([
+                'name' => 'Mutation',
+                'fields' => $availableMutations,
             ]);
 
             $schema = new \GraphQL\Type\Schema($schema_array);
@@ -234,5 +338,19 @@
         public static function getRelations(): array
         {
             return [];
+        }
+
+        public function getErrorsAsString(): string
+        {
+            if (empty($this->errors)) {
+                return '';
+            }
+
+            $a = [];
+            foreach ($this->errors as $field => $value) {
+                $a[] = sprintf('`%s`: %s', $field, $value);
+            }
+
+            return implode(',', $a);
         }
     }

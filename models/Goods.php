@@ -34,9 +34,9 @@
         public function rules()
         {
             return [
-                [['id', 'name', 'price', 'description'], 'required'],
+                [['name', 'price', 'description'], 'required'],
                 [['id'], 'integer'],
-                [['price'], 'float'],
+                [['price'], 'number'],
                 [['name', 'description'], 'string'],
             ];
         }
@@ -83,5 +83,17 @@
             return [
                 [static::REL_MANY, 'GoodsFeature', 'id', 'goods_id', 'features'],
             ];
+        }
+
+        public function beforeValidate()
+        {
+            if (is_null($this->price)) {
+                $this->price = 0;
+            }
+            if (empty($this->description)) {
+                $this->description = null;
+            }
+
+            return parent::beforeValidate();
         }
     }
