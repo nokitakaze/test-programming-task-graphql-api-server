@@ -1,4 +1,5 @@
 <?php
+    declare(strict_types=1);
 
     namespace app\lib;
 
@@ -7,7 +8,7 @@
     class GraphqlQueryResolver
     {
         /**
-         * GraphQL-
+         * Обработка GraphQL-запроса в Системе
          *
          * @param string $query
          *

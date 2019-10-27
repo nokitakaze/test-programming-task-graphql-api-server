@@ -36,7 +36,7 @@
             return [
                 [['name', 'goods_id', 'value'], 'required'],
                 [['id', 'goods_id'], 'integer'],
-                [['goods_id', 'value'], 'string'],
+                [['name', 'value'], 'string'],
             ];
         }
 
@@ -68,6 +68,7 @@
 
         /**
          * @return Goods
+         * @codeCoverageIgnore
          */
         public function getGoods()
         {

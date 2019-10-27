@@ -1,5 +1,8 @@
 # phpstorm project files
-.idea
+/.idea
+
+/tests/html-report
+/tests/clover.xml
 
 # netbeans project files
 nbproject

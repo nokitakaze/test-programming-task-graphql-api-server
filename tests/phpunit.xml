@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit colors="true"
+         timeoutForSmallTests="15"
+         timeoutForMediumTests="15"
+         timeoutForLargeTests="60">
+    <filter>
+        <whitelist processUncoveredFilesFromWhitelist="true">
+            <file>../models/Goods.php</file>
+            <file>../models/GoodsFeature.php</file>
+            <file>../lib/Mxmodel.php</file>
+            <file>../lib/GraphqlQueryResolver.php</file>
+        </whitelist>
+    </filter>
+</phpunit>

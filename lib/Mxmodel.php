@@ -13,19 +13,20 @@
     {
         /**
          * @return string[]
+         * @codeCoverageIgnore
          */
         public static function attributeTypes(): array
         {
             return [];
         }
 
-        public static function getAttributeType(string $attribute): ScalarType
+        public static function getAttributeType(string $attribute): Type
         {
             $types = static::attributeTypes();
             if (!isset($types[$attribute])) {
                 return Type::string();
             }
-            if ($types[$attribute] instanceof ScalarType) {
+            if ($types[$attribute] instanceof Type) {
                 return $types[$attribute];
             }
 
@@ -169,7 +170,12 @@
                         $query = $query->andWhere(['=', $key, $value]);
                     }
                     // hint: Реляции подгружаются на уровне GraphQL-PHP и их значения подставляются сами по себе
-                    $result = $query->one()->attributes;
+                    $record = $query->one();
+                    if (is_null($record)) {
+                        // @todo А что нужно возвращать, если null?
+                        return null;
+                    }
+                    $result = $record->attributes;
 
                     return $result;
                 },
@@ -210,6 +216,7 @@
             $obj = new $class();
 
             // update
+            /** @noinspection PhpParamsInspection */
             $mainUpdateArgs = ['id' => Type::nonNull($class::getAttributeType('id'))];
             foreach (array_keys($obj->attributeLabels()) as $name) {
                 if ($name === 'id') {
@@ -293,6 +300,33 @@
                 },
             ];
 
+            // delete
+            /** @noinspection PhpParamsInspection */
+            $mainDeleteArgs = ['id' => Type::nonNull($class::getAttributeType('id'))];
+
+            $queries['delete'.$classShort] = [
+                'type' => Type::boolean(),
+                'description' => 'Delete item with type '.$classShort,
+                'args' => $mainDeleteArgs,
+                'resolve' => function ($root, array $args) use ($class, $classShort): bool {
+                    if (empty($args)) {
+                        throw new \Exception('Args must have at least one field');
+                    }
+                    if (empty($args['id'])) {// hint: В реальности primary key может называться как угодно
+                        throw new \Exception('Arg `id` must have value');
+                    }
+
+                    $query = $class::find()->where(['=', 'id', $args['id']]);
+                    $record = $query->one();
+                    if (!is_null($record)) {
+                        $record->delete();
+                        return true;
+                    } else {
+                        return false;
+                    }
+                },
+            ];
+
             return $queries;
         }
 
@@ -334,6 +368,7 @@
 
         /**
          * @return array
+         * @codeCoverageIgnore
          */
         public static function getRelations(): array
         {
@@ -348,9 +383,9 @@
 
             $a = [];
             foreach ($this->errors as $field => $value) {
-                $a[] = sprintf('`%s`: %s', $field, $value);
+                $a[] = sprintf('`%s`: %s', $field, implode(', ', $value));
             }
 
-            return implode(',', $a);
+            return implode('; ', $a);
         }
     }

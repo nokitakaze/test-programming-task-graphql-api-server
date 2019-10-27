@@ -34,7 +34,7 @@
         public function rules()
         {
             return [
-                [['name', 'price', 'description'], 'required'],
+                [['name', 'price',], 'required'],
                 [['id'], 'integer'],
                 [['price'], 'number'],
                 [['name', 'description'], 'string'],
@@ -69,6 +69,7 @@
 
         /**
          * @return GoodsFeature[]
+         * @codeCoverageIgnore
          */
         public function getFeatures()
         {
