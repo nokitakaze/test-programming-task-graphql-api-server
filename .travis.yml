@@ -3,14 +3,13 @@ language: php
 php:
   - 7.2
   - 7.3
-  - 7.4
-  - 8.0
-  - nightly
+  - 7.4snapshot
+#  - nightly
 
 matrix:
   allow_failures:
-    - php: nightly
-    - php: 8.0
+    - php: 7.4snapshot
+  #    - php: nightly
   fast_finish: true
 
 sudo: false
@@ -35,4 +34,3 @@ after_script:
   - wget https://scrutinizer-ci.com/ocular.phar
   - if [ $(phpenv version-name) = "7.2" ]; then php ocular.phar code-coverage:upload --format=php-clover tests/clover.xml --revision=$TRAVIS_COMMIT; fi
   - if [ $(phpenv version-name) = "7.3" ]; then php ocular.phar code-coverage:upload --format=php-clover tests/clover.xml --revision=$TRAVIS_COMMIT; fi
-  - if [ $(phpenv version-name) = "7.4" ]; then php ocular.phar code-coverage:upload --format=php-clover tests/clover.xml --revision=$TRAVIS_COMMIT; fi
