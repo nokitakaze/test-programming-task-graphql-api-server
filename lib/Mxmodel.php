@@ -4,11 +4,15 @@
     namespace app\lib;
 
     use GraphQL\Type\Definition\ObjectType;
-    use GraphQL\Type\Definition\ScalarType;
-    use \Yii;
     use \yii\db\ActiveRecord;
     use \GraphQL\Type\Definition\Type;
 
+    /**
+     * Class Mxmodel
+     * @package app\lib
+     *
+     * @property int $id
+     */
     class Mxmodel extends ActiveRecord
     {
         /**
@@ -85,7 +89,9 @@
                      * @var string         $otherField
                      * @var Mxmodel|string $otherClassFull
                      */
-                    $otherClassFull = '\\app\\models\\'.$otherClass;
+                    $otherClassFull = '\\app\\models\\'.
+                                      /** @scrutinizer ignore-type */
+                                      $otherClass;
                     if (isset(self::$_relationReferencesCount[$otherClassFull])) {
                         self::$_relationReferencesCount[$otherClassFull]++;
                     } else {
@@ -160,7 +166,8 @@
                 'type' => $selfType,
                 'description' => 'Get item with type '.$classShort,
                 'args' => $mainQueryArgs,
-                'resolve' => function ($root, array $args) use ($class): array {
+                'resolve' => function (/** @noinspection PhpUnusedParameterInspection */ $root, array $args)
+                use ($class): ?array {
                     if (empty($args)) {
                         throw new \Exception('Args must have at least one field');
                     }
@@ -186,7 +193,7 @@
                 'type' => Type::listOf($selfType),
                 'description' => 'Get all items with type '.$classShort,
                 'args' => $mainQueryArgs,
-                'resolve' => function ($root, array $args) use ($class) {
+                'resolve' => function (/** @noinspection PhpUnusedParameterInspection */ $root, array $args) use ($class): array {
                     $query = $class::find();
                     foreach ($args as $key => $value) {
                         $query = $query->andWhere(['=', $key, $value]);
@@ -206,16 +213,65 @@
             return $queries;
         }
 
-        public static function getAvailableMutations(): array
+        protected static function getAvailableMutationsInsert(Mxmodel $obj): array
         {
-            $queries = [];
+            /**
+             * @var Mxmodel $class
+             */
             $class = static::class;
             $classShort = basename(str_replace('\\', '/', $class));
-            /** @var Mxmodel $obj */
-            /** @var Mxmodel $class */
-            $obj = new $class();
+            $mainInsertArgs = [];
+            foreach (array_keys($obj->attributeLabels()) as $name) {
+                if ($name === 'id') {
+                    continue;
+                }
+                $mainInsertArgs[$name] = [
+                    // hint: Другие фичи для аргументов сейчас не используются
+                    'type' => $class::getAttributeType($name),
+                ];
+            }
 
-            // update
+            return [
+                'type' => static::getGraphQLType(false, '_insert_'),
+                'description' => 'Get item with type '.$classShort,
+                'args' => $mainInsertArgs,
+                'resolve' => function (/** @noinspection PhpUnusedParameterInspection */ $root, array $args)
+                use ($class, $classShort): array {
+                    // hint: Тут специально нет проверки на empty($args), объект просто создастся со своими дефолтными значениями
+                    if (!empty($args['id'])) {// hint: В реальности primary key может называться как угодно
+                        // hint: Сюда код не придёт никогда, так как Code Contract GraphQL-PHP не позволит этому случиться —
+                        // этого поля просто нет среди доступных
+                        // @codeCoverageIgnoreStart
+                        throw new \Exception('Arg `id` must not be set');
+                        // @codeCoverageIgnoreEnd
+                    }
+
+                    /** @var Mxmodel $newRecord */
+                    $newRecord = new $class();
+                    foreach ($args as $key => $value) {
+                        // hint: Сюда надо вставлять код, который санирует поля, в которые нельзя писать
+                        $newRecord->{$key} = $value;
+                    }
+                    if (!$newRecord->validate() or !$newRecord->save()) {
+                        throw new \Exception(sprintf('Can not save new record (%s): %s',
+                            $classShort, $newRecord->getErrorsAsString()));
+                    }
+
+                    $record = $class::find()->where(['=', 'id', $newRecord->id])->one();
+
+                    return $record->attributes;
+                },
+            ];
+        }
+
+        protected static function getAvailableMutationsUpdate(Mxmodel $obj): array
+        {
+            /**
+             * @var Mxmodel $class
+             */
+            $class = static::class;
+            $classShort = basename(str_replace('\\', '/', $class));
+
             /** @noinspection PhpParamsInspection */
             $mainUpdateArgs = ['id' => Type::nonNull($class::getAttributeType('id'))];
             foreach (array_keys($obj->attributeLabels()) as $name) {
@@ -228,11 +284,12 @@
                 ];
             }
 
-            $queries['update'.$classShort] = [
+            return [
                 'type' => static::getGraphQLType(false, '_update_'),
                 'description' => 'Get item with type '.$classShort,
                 'args' => $mainUpdateArgs,
-                'resolve' => function ($root, array $args) use ($class, $classShort): array {
+                'resolve' => function (/** @noinspection PhpUnusedParameterInspection */ $root, array $args)
+                use ($class, $classShort): ?array {
                     if (empty($args)) {
                         // hint: Сюда код не придёт никогда, так как Code Contract GraphQL-PHP не позволит этому случиться
                         // @codeCoverageIgnoreStart
@@ -270,58 +327,24 @@
                     return $record->attributes;
                 },
             ];
+        }
 
-            // insert
-            $mainInsertArgs = [];
-            foreach (array_keys($obj->attributeLabels()) as $name) {
-                if ($name === 'id') {
-                    continue;
-                }
-                $mainInsertArgs[$name] = [
-                    // hint: Другие фичи для аргументов сейчас не используются
-                    'type' => $class::getAttributeType($name),
-                ];
-            }
-            $queries['insert'.$classShort] = [
-                'type' => static::getGraphQLType(false, '_insert_'),
-                'description' => 'Get item with type '.$classShort,
-                'args' => $mainInsertArgs,
-                'resolve' => function ($root, array $args) use ($class, $classShort): array {
-                    // hint: Тут специально нет проверки на empty($args), объект просто создастся со своими дефолтными значениями
-                    if (!empty($args['id'])) {// hint: В реальности primary key может называться как угодно
-                        // hint: Сюда код не придёт никогда, так как Code Contract GraphQL-PHP не позволит этому случиться —
-                        // этого поля просто нет среди доступных
-                        // @codeCoverageIgnoreStart
-                        throw new \Exception('Arg `id` must not be set');
-                        // @codeCoverageIgnoreEnd
-                    }
+        protected static function getAvailableMutationsDelete(): array
+        {
+            /**
+             * @var Mxmodel $class
+             */
+            $class = static::class;
+            $classShort = basename(str_replace('\\', '/', $class));
 
-                    /** @var Mxmodel $newRecord */
-                    $newRecord = new $class();
-                    foreach ($args as $key => $value) {
-                        // hint: Сюда надо вставлять код, который санирует поля, в которые нельзя писать
-                        $newRecord->{$key} = $value;
-                    }
-                    if (!$newRecord->validate() or !$newRecord->save()) {
-                        throw new \Exception(sprintf('Can not save new record (%s): %s',
-                            $classShort, $newRecord->getErrorsAsString()));
-                    }
-
-                    $record = $class::find()->where(['=', 'id', $newRecord->id])->one();
-
-                    return $record->attributes;
-                },
-            ];
-
-            // delete
             /** @noinspection PhpParamsInspection */
             $mainDeleteArgs = ['id' => Type::nonNull($class::getAttributeType('id'))];
 
-            $queries['delete'.$classShort] = [
+            return [
                 'type' => Type::boolean(),
                 'description' => 'Delete item with type '.$classShort,
                 'args' => $mainDeleteArgs,
-                'resolve' => function ($root, array $args) use ($class, $classShort): bool {
+                'resolve' => function (/** @noinspection PhpUnusedParameterInspection */ $root, array $args) use ($class): bool {
                     if (empty($args)) {
                         // hint: Сюда код не придёт никогда, так как Code Contract GraphQL-PHP не позволит этому случиться
                         // @codeCoverageIgnoreStart
@@ -345,6 +368,25 @@
                     }
                 },
             ];
+        }
+
+        public static function getAvailableMutations(): array
+        {
+            $queries = [];
+            $class = static::class;
+            $classShort = basename(str_replace('\\', '/', $class));
+            /** @var Mxmodel $obj */
+            /** @var Mxmodel $class */
+            $obj = new $class();
+
+            // update
+            $queries['update'.$classShort] = static::getAvailableMutationsUpdate($obj);
+
+            // insert
+            $queries['insert'.$classShort] = static::getAvailableMutationsInsert($obj);
+
+            // delete
+            $queries['delete'.$classShort] = static::getAvailableMutationsDelete();
 
             return $queries;
         }

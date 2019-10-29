@@ -4,23 +4,14 @@
     namespace app\controllers;
 
     use app\lib\GraphqlQueryResolver;
-    use app\lib\Mxmodel;
-    use Yii;
     use yii\filters\AccessControl;
     use yii\web\BadRequestHttpException;
     use yii\web\Controller;
-    use yii\web\Response;
     use yii\filters\VerbFilter;
-    use app\models\LoginForm;
-    use app\models\ContactForm;
-    use GraphQL\GraphQL;
-    use GraphQL\Type\Schema;
-    use GraphQL\Type\Definition\Type;
-    use GraphQL\Type\Definition\ObjectType;
 
     class GraphqlController extends Controller
     {
-        function __construct($id, $module, $config = [])
+        public function __construct($id, $module, $config = [])
         {
             parent::__construct($id, $module, $config);
         }
