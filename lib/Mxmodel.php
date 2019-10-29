@@ -250,6 +250,10 @@
                     $query = $class::find()->where(['=', 'id', $args['id']]);
                     // hint: Реляции подгружаются на уровне GraphQL-PHP и их значения подставляются сами по себе
                     $record = $query->one();
+                    if (is_null($record)) {
+                        // @todo Что нужно делать, когда запись не найдена?
+                        return null;
+                    }
                     foreach ($args as $key => $value) {
                         // hint: Сюда надо вставлять код, который санирует поля, в которые нельзя писать
                         if ($key !== 'id') {

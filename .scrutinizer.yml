@@ -1,0 +1,11 @@
+tools:
+    php_sim: false
+    php_pdepend: true
+    php_analyzer: true
+    php_code_coverage: true
+    external_code_coverage:
+        timeout: 2400 # There can be another pull request in progress
+        runs: 3 # PHP 7.2 + PHP 7.3 + PHP 7.4
+
+filter:
+    excluded_paths: [vendor/*, test/*]

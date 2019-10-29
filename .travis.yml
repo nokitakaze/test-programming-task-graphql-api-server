@@ -1,0 +1,39 @@
+language: php
+
+php:
+  - 7.2
+  - 7.3
+  - 7.4
+  - 8.0
+  - nightly
+
+matrix:
+  allow_failures:
+    - php: nightly
+    - php: 8.0
+  fast_finish: true
+
+sudo: false
+
+services:
+  - mysql
+
+cache:
+  directories:
+    - $HOME/.composer/cache
+
+before_install:
+  - composer self-update
+  - mysql -e 'create database mxtest character set UTF8mb4 collate utf8mb4_general_ci';
+  - mysql -u root --default-character-set=utf8mb4 mxtest < DDL.sql
+
+install: composer install --no-interaction
+
+script:
+  - composer test
+
+after_script:
+  - wget https://scrutinizer-ci.com/ocular.phar
+  - if [ $(phpenv version-name) = "7.2" ]; then php ocular.phar code-coverage:upload --format=php-clover tests/clover.xml --revision=$TRAVIS_COMMIT; fi
+  - if [ $(phpenv version-name) = "7.3" ]; then php ocular.phar code-coverage:upload --format=php-clover tests/clover.xml --revision=$TRAVIS_COMMIT; fi
+  - if [ $(phpenv version-name) = "7.4" ]; then php ocular.phar code-coverage:upload --format=php-clover tests/clover.xml --revision=$TRAVIS_COMMIT; fi
