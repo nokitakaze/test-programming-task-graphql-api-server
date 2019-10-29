@@ -24,13 +24,12 @@ cache:
 
 before_install:
   - composer self-update
-  - mysql -e 'create database mxtest character set UTF8mb4 collate utf8mb4_general_ci';
+  - mysql -e 'create database mxtest character set UTF8mb4 collate utf8mb4_general_ci'
   - mysql -u root --default-character-set=utf8mb4 mxtest < DDL.sql
 
 install: composer install --no-interaction
 
-script:
-  - composer test
+script: composer tests-cl
 
 after_script:
   - wget https://scrutinizer-ci.com/ocular.phar

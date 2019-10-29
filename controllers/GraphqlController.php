@@ -89,7 +89,7 @@
          *
          * @return array
          */
-        public function actionRequest()
+        public function actionRequest(): array
         {
             \Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
 
@@ -100,12 +100,13 @@
                 $query = $input['query'];
 
                 // Выполнение запроса
-                $result = GraphqlQueryResolver::runQuery($query);
+                $result = GraphqlQueryResolver::runQueryAsArray($query);
             } catch (\Exception $e) {
-                $a = 0;
                 $result = [
-                    'error' => [
-                        'message' => $e->getMessage(),
+                    'errors' => [
+                        [
+                            'message' => $e->getMessage(),
+                        ],
                     ],
                 ];
             }

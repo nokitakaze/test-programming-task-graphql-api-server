@@ -4,6 +4,7 @@
     "php": "^7.2",
     "webonyx/graphql-php": "^0.13.8",
     "ext-json": "*",
+    "ext-pdo": "*",
     "phpunit/phpunit": "^8.0",
     "yiisoft/yii2": "~2.0.14",
     "yiisoft/yii2-bootstrap": "~2.0.0",
@@ -21,6 +22,9 @@
   "scripts": {
     "tests": [
       "vendor/bin/phpunit tests --coverage-clover tests/clover.xml --configuration tests/phpunit.xml --coverage-html tests/html-report"
+    ],
+    "tests-cl": [
+      "vendor/bin/phpunit tests --coverage-clover tests/clover.xml --configuration tests/phpunit.xml"
     ],
     "post-install-cmd": [
       "yii\\composer\\Installer::postInstall"

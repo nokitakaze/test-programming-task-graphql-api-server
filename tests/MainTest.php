@@ -9,6 +9,8 @@
 
     require_once __DIR__.'/_bootstrap.php';
 
+    /** @noinspection PhpFullyQualifiedNameUsageInspection */
+
     class MainTest extends \PHPUnit\Framework\TestCase
     {
         public function __construct($name = null, array $data = [], $dataName = '')
@@ -28,12 +30,41 @@
             }
         }
 
+        public function testDBConnection()
+        {
+            Goods::find()->one();
+            $this->assertTrue(true);
+        }
+
+        protected function executeQuery(string $query): array
+        {
+            $rawResult = GraphqlQueryResolver::runQuery($query);
+            if (!empty($rawResult->errors)) {
+                $a = [];
+                $u = false;
+                foreach ($rawResult->errors as $e) {
+                    $s = $e->getMessage();
+                    $a[] = $s;
+                    $u = ($u or !empty($s));
+                }
+                $string = implode('; ', $a);
+
+                $this->fail(!$u ? 'Query ended with errors, but they are empty' : $string);
+            }
+
+            $result = $rawResult->toArray();
+            $this->assertIsArray($result);
+            $this->assertArrayNotHasKey('errors', $result);
+
+            return $result;
+        }
+
         public function testSchema()
         {
             $query =
                 'query IntrospectionQuery { __schema { queryType { name } mutationType { name } subscriptionType { name } types { ...FullType } directives { name description locations args { ...InputValue } } } } fragment FullType on __Type { kind name description fields(includeDeprecated: true) { name description args { ...InputValue } type { ...TypeRef } isDeprecated deprecationReason } inputFields { ...InputValue } interfaces { ...TypeRef } enumValues(includeDeprecated: true) { name description isDeprecated deprecationReason } possibleTypes { ...TypeRef } } fragment InputValue on __InputValue { name description type { ...TypeRef } defaultValue } fragment TypeRef on __Type { kind name ofType { kind name ofType { kind name ofType { kind name ofType { kind name ofType { kind name ofType { kind name ofType { kind name } } } } } } } }';
 
-            $output = GraphqlQueryResolver::runQuery($query);
+            $output = GraphqlQueryResolver::runQueryAsArray($query);
             $schema = $output['data']['__schema'];
             $this->assertArrayHasKey('queryType', $schema);
             $this->assertArrayHasKey('mutationType', $schema);
@@ -211,8 +242,10 @@
         /**
          * Вставка данных
          * @dataProvider dataAllMainQuery1_Insert
+         *
+         * @param int $innerId
          */
-        public function testAllMainQuery1_Insert($innerId)
+        public function testAllMainQuery1_Insert(/** @noinspection PhpUnusedParameterInspection */ int $innerId)
         {
             // hint: По-хорошему это должно делаться через ортогональные массивы, но у меня нет времени
 
@@ -242,8 +275,7 @@
                 implode(', ', $string_value),
                 implode(', ', $need_keys)
             );
-            $result = GraphqlQueryResolver::runQuery($query);
-            $this->assertArrayNotHasKey('errors', $result);
+            $result = $this->executeQuery($query);
 
             $newItem = $result['data']['insertGoods'];
             $this->assertReturnGoods($need_keys, $newItem,
@@ -283,8 +315,7 @@
                     implode(', ', $string_value),
                     implode(', ', $need_keys)
                 );
-                $result = GraphqlQueryResolver::runQuery($query);
-                $this->assertArrayNotHasKey('errors', $result);
+                $result = $this->executeQuery($query);
                 $newItem = $result['data']['insertGoodsFeature'];
                 $this->assertReturnGoodsFeature($need_keys, $newItem,
                     ['name' => $name, 'value' => $valueFeature, 'goods_id' => $recordItem['id']]);
@@ -297,8 +328,7 @@
 }}',
                     $raw['id']
                 );
-                $result = GraphqlQueryResolver::runQuery($query);
-                $this->assertArrayNotHasKey('errors', $result);
+                $result = $this->executeQuery($query);
                 $newItem = $result['data']['GoodsFeature'];
                 $this->assertReturnGoodsFeature(null, $newItem,
                     ['name' => $name, 'value' => $valueFeature, 'goods_id' => $recordItem['id']]);
@@ -316,8 +346,7 @@
 }}',
                 $recordItem['id']
             );
-            $result = GraphqlQueryResolver::runQuery($query);
-            $this->assertArrayNotHasKey('errors', $result);
+            $result = $this->executeQuery($query);
             $newItem = $result['data']['Goods'];
             $this->assertReturnGoods(null, $newItem, $recordItem);
             $this->assertEquals($feature_count, count($recordItem['features']));
@@ -359,6 +388,9 @@
          */
         public function testAllMainQuery2_UpdateGoods(int $innerId)
         {
+            if (empty(self::$dataGoods)) {
+                $this->fail('dataGoods is empty');
+            }
             $ids = array_keys(self::$dataGoods);
             if (is_null(self::$updateGoodsIds)) {
                 shuffle($ids);
@@ -402,8 +434,7 @@
                 implode(', ', $need_keys)
             );
             unset($raw, $string_value);
-            $result = GraphqlQueryResolver::runQuery($query);
-            $this->assertArrayNotHasKey('errors', $result);
+            $result = $this->executeQuery($query);
             $newItem = $result['data']['updateGoods'];
             $this->assertReturnGoods($need_keys, $newItem, self::$dataGoods[$goods_id]);
 
@@ -415,8 +446,7 @@
 }}',
                     $oldId
                 );
-                $result = GraphqlQueryResolver::runQuery($query);
-                $this->assertArrayNotHasKey('errors', $result);
+                $result = $this->executeQuery($query);
                 $newItem = $result['data']['Goods'];
 
                 $this->assertReturnGoods(null, $newItem, self::$dataGoods[$oldId]);
@@ -429,6 +459,9 @@
 
         protected function checkDataGoodsFeatureConsistency()
         {
+            if (empty(self::$dataFeatures)) {
+                $this->fail('dataFeatures is empty');
+            }
             $ids = array_keys(self::$dataFeatures);
             foreach ($ids as $oldId) {
                 $query = sprintf('query{
@@ -437,8 +470,7 @@
 }}',
                     $oldId
                 );
-                $result = GraphqlQueryResolver::runQuery($query);
-                $this->assertArrayNotHasKey('errors', $result);
+                $result = $this->executeQuery($query);
                 $newItem = $result['data']['GoodsFeature'];
 
                 $this->assertReturnGoodsFeature(null, $newItem, self::$dataFeatures[$oldId]);
@@ -455,6 +487,9 @@
          */
         public function testAllMainQuery3_UpdateGoodsFeature(int $innerId)
         {
+            if (empty(self::$dataFeatures)) {
+                $this->fail('dataFeatures is empty');
+            }
             $ids = array_keys(self::$dataFeatures);
             if (is_null(self::$updateGoodsFeatureIds)) {
                 shuffle($ids);
@@ -491,8 +526,7 @@
                 implode(', ', $need_keys)
             );
             unset($raw, $string_value);
-            $result = GraphqlQueryResolver::runQuery($query);
-            $this->assertArrayNotHasKey('errors', $result);
+            $result = $this->executeQuery($query);
             $newItem = $result['data']['updateGoodsFeature'];
             $this->assertReturnGoodsFeature($need_keys, $newItem, self::$dataFeatures[$feature_id]);
 
@@ -505,6 +539,9 @@
          */
         public function testAllMainQuery4_Get()
         {
+            if (empty(self::$dataGoods)) {
+                $this->fail('dataGoods is empty');
+            }
             $goods_id = array_keys(self::$dataGoods)[0];
             for ($i = 0; $i < 40; $i++) {
                 $need_keys = self::getNeedKeysForGoods();
@@ -516,8 +553,7 @@
                     $goods_id,
                     implode(', ', $need_keys)
                 );
-                $result = GraphqlQueryResolver::runQuery($query);
-                $this->assertArrayNotHasKey('errors', $result);
+                $result = $this->executeQuery($query);
                 $newItem = $result['data']['Goods'];
                 $this->assertEmpty(array_diff(array_keys($newItem), $need_keys));
                 $this->assertEmpty(array_diff($need_keys, array_keys($newItem)));
@@ -534,8 +570,7 @@
                     $feature_id,
                     implode(', ', $need_keys)
                 );
-                $result = GraphqlQueryResolver::runQuery($query);
-                $this->assertArrayNotHasKey('errors', $result);
+                $result = $this->executeQuery($query);
                 $newItem = $result['data']['GoodsFeature'];
                 $this->assertEmpty(array_diff(array_keys($newItem), $need_keys));
                 $this->assertEmpty(array_diff($need_keys, array_keys($newItem)));
@@ -548,8 +583,7 @@
         public function testAllMainQuery4a_GetList()
         {
             $query = 'query {allGoods {id, name, description, price, features{id,name,value,goods_id}}}';
-            $result = GraphqlQueryResolver::runQuery($query);
-            $this->assertArrayNotHasKey('errors', $result);
+            $result = $this->executeQuery($query);
 
             $all_goods = [];
             $all_features = [];
@@ -575,13 +609,15 @@
          */
         public function testAllMainQuery4b_GetList()
         {
+            if (empty(self::$dataGoods)) {
+                $this->fail('dataGoods is empty');
+            }
             $ids = array_keys(self::$dataGoods);
             shuffle($ids);
             for ($i = 0; $i < 5; $i++) {
                 $goods_id = $ids[$i];
                 $query = sprintf('query {allGoods(id: %s) {id}}', $goods_id);
-                $result = GraphqlQueryResolver::runQuery($query);
-                $this->assertArrayNotHasKey('errors', $result);
+                $result = $this->executeQuery($query);
                 $this->assertEquals(1, count($result['data']['allGoods']));
                 $goods = $result['data']['allGoods'][0];
                 $this->assertEquals($goods_id, $goods['id']);
@@ -596,6 +632,9 @@
          */
         public function testAllMainQuery6_DeleteGoodsFeature(int $innerId)
         {
+            if (empty(self::$dataFeatures)) {
+                $this->fail('dataFeatures is empty');
+            }
             $ids = array_keys(self::$dataFeatures);
             if (is_null(self::$deleteGoodsFeatureIds)) {
                 if (count($ids) <= 10) {
@@ -613,8 +652,7 @@
             $feature_id = self::$deleteGoodsFeatureIds[$innerId];
 
             $query = sprintf('mutation {  deleteGoodsFeature (id: %s) }', $feature_id);
-            $result = GraphqlQueryResolver::runQuery($query);
-            $this->assertArrayNotHasKey('errors', $result);
+            $result = $this->executeQuery($query);
             $this->assertTrue($result['data']['deleteGoodsFeature']);
 
             $record = GoodsFeature::find()->where(['=', 'id', $feature_id])->one();
@@ -637,6 +675,9 @@
          */
         public function testAllMainQuery7_DeleteGoods(int $innerId)
         {
+            if (empty(self::$dataGoods)) {
+                $this->fail('dataGoods is empty');
+            }
             $ids = array_keys(self::$dataGoods);
             if (is_null(self::$deleteGoodsIds)) {
                 shuffle($ids);
@@ -645,8 +686,7 @@
             $goods_id = self::$deleteGoodsIds[$innerId];
 
             $query = sprintf('mutation {  deleteGoods (id: %s) }', $goods_id);
-            $result = GraphqlQueryResolver::runQuery($query);
-            $this->assertArrayNotHasKey('errors', $result);
+            $result = $this->executeQuery($query);
             $this->assertTrue($result['data']['deleteGoods']);
 
             $record = Goods::find()->where(['=', 'id', $goods_id])->one();
@@ -678,8 +718,7 @@
         public function testAllMainQuery8_DeleteEmpties(string $class)
         {
             $query = sprintf(sprintf('mutation {  delete%s (id: -1) }', $class));
-            $result = GraphqlQueryResolver::runQuery($query);
-            $this->assertArrayNotHasKey('errors', $result);
+            $result = $this->executeQuery($query);
             $this->assertFalse($result['data']['delete'.$class]);
         }
 
@@ -691,7 +730,7 @@
         public function testEmptySingleItemRequest(string $class)
         {
             $query = sprintf('query{%s {id}}', $class);
-            $result = GraphqlQueryResolver::runQuery($query);
-            $this->assertArrayHasKey('errors', $result);
+            $rawResult = GraphqlQueryResolver::runQuery($query);
+            $this->assertNotEmpty($rawResult->errors);
         }
     }
