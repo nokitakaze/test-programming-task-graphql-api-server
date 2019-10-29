@@ -8,4 +8,15 @@ tools:
         runs: 2 # PHP 7.2 + PHP 7.3
 
 filter:
-    excluded_paths: [vendor/*, test/*]
+    excluded_paths:
+        - "vendor/"
+        - "tests/"
+        - "config/"
+        - "assets/"
+        - "commands/"
+        - "mail/"
+        - "runtime/"
+        - "views/"
+        - "web/"
+        - "widgets/"
+        - "controllers/SiteController.php"

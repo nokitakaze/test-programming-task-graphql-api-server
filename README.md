@@ -96,3 +96,8 @@ mutation {
   deleteGoodsFeature (id: 100500)
 }
 ```
+
+## Баджи о качестве кода
+[![Build Status](https://secure.travis-ci.org/nokitakaze/test-programming-task-graphql-api-server.png?branch=master)](http://travis-ci.com/nokitakaze/test-programming-task-graphql-api-server)
+[![Scrutinizer Code Quality](https://scrutinizer-ci.com/g/nokitakaze/test-programming-task-graphql-api-server/badges/quality-score.png?b=master)](https://scrutinizer-ci.com/g/nokitakaze/test-programming-task-graphql-api-server/)
+![Code Coverage](https://scrutinizer-ci.com/g/nokitakaze/test-programming-task-graphql-api-server/badges/coverage.png?b=master)
